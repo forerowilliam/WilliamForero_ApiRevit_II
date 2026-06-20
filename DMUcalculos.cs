@@ -12,6 +12,7 @@ namespace WilliamForero_ApiRevit_II
     {
         public XYZ Punto { get; set; }
         public Edge Arista { get; set; }
+        public Reference ReferenciaPunto { get; set; }
     }
 
     public static class AnalizadorSuelos
@@ -194,7 +195,8 @@ namespace WilliamForero_ApiRevit_II
                                         vertices.Add(new VerticeConArista
                                         {
                                             Punto = arista.AsCurve().GetEndPoint(0),
-                                            Arista = arista
+                                            Arista = arista,
+                                            ReferenciaPunto = arista.GetEndPointReference(0)
                                         });
                                     }
                                 }
@@ -208,17 +210,24 @@ namespace WilliamForero_ApiRevit_II
             return vertices;
         }
 
-        public static VerticeConArista ObtenerVerticeMasCercanoEnX(List<VerticeConArista> vertices, XYZ puntoColumna)
-        {
-            return vertices
-                .OrderBy(v => Math.Abs(v.Punto.X - puntoColumna.X))
-                .First();
-        }
+        //public static VerticeConArista ObtenerVerticeMasCercanoEnX(List<VerticeConArista> vertices, XYZ puntoColumna)
+        //{
+        //    return vertices
+        //        .OrderBy(v => Math.Abs(v.Punto.X - puntoColumna.X))
+        //        .First();
+        //}
 
-        public static VerticeConArista ObtenerVerticeMasCercanoEnY(List<VerticeConArista> vertices, XYZ puntoColumna)
+        //public static VerticeConArista ObtenerVerticeMasCercanoEnY(List<VerticeConArista> vertices, XYZ puntoColumna)
+        //{
+        //    return vertices
+        //        .OrderBy(v => Math.Abs(v.Punto.Y - puntoColumna.Y))
+        //        .First();
+        //}
+
+        public static VerticeConArista ObtenerVerticeMasCercano(List<VerticeConArista> vertices, XYZ puntoColumna)
         {
             return vertices
-                .OrderBy(v => Math.Abs(v.Punto.Y - puntoColumna.Y))
+                .OrderBy(v => v.Punto.DistanceTo(puntoColumna))
                 .First();
         }
 

@@ -102,15 +102,29 @@ namespace WilliamForero_ApiRevit_II
             ReferenceArray refArrayX = new ReferenceArray();
             ReferenceArray refArrayY = new ReferenceArray();
 
-            // 4. Agregar referencia del vértice del suelo
-            //    usando la primera columna como referencia de posición
+            //// 4. Agregar referencia del vértice del suelo
+            ////    usando la primera columna como referencia de posición
+            //XYZ puntoReferencia = GeometriaSuelos.ObtenerCentroideColumnas(todasLasColumnas);
+
+            //VerticeConArista verticeSueloX = GeometriaSuelos.ObtenerVerticeMasCercanoEnX(vertices, puntoReferencia);
+            //VerticeConArista verticeSueloY = GeometriaSuelos.ObtenerVerticeMasCercanoEnY(vertices, puntoReferencia);
+
+            //refArrayX.Append(verticeSueloX.Arista.Reference);
+            //refArrayY.Append(verticeSueloY.Arista.Reference);
+
+            // 4. Agregar referencia del vértice del suelo utilizando la distancia real
             XYZ puntoReferencia = GeometriaSuelos.ObtenerCentroideColumnas(todasLasColumnas);
 
-            VerticeConArista verticeSueloX = GeometriaSuelos.ObtenerVerticeMasCercanoEnX(vertices, puntoReferencia);
-            VerticeConArista verticeSueloY = GeometriaSuelos.ObtenerVerticeMasCercanoEnY(vertices, puntoReferencia);
+            // Obtenemos el único vértice más cercano en distancia real (sirve para ambos ejes)
+            VerticeConArista verticeSueloMasCercano = GeometriaSuelos.ObtenerVerticeMasCercano(vertices, puntoReferencia);
 
-            refArrayX.Append(verticeSueloX.Arista.Reference);
-            refArrayY.Append(verticeSueloY.Arista.Reference);
+            // Agregamos la referencia del VÉRTICE (punto) para las cotas X e Y
+            if (verticeSueloMasCercano.ReferenciaPunto != null)
+            {
+                refArrayX.Append(verticeSueloMasCercano.ReferenciaPunto);
+                refArrayY.Append(verticeSueloMasCercano.ReferenciaPunto);
+            }
+
 
             // 5. Agregar referencia del eje de cada columna
             foreach (FamilyInstance columna in todasLasColumnas)
@@ -128,70 +142,52 @@ namespace WilliamForero_ApiRevit_II
             ViewPlan vistaPlanta = GeometriaSuelos.ObtenerVistaPlanta(doc, todasLasColumnas[0]);
             if (vistaPlanta == null) return;
 
-            //// 7. Crear líneas de cota
-            //XYZ puntoMedioX = new XYZ(
-            //    (verticeSueloX.Punto.X + puntoReferencia.X) / 2,
-            //    puntoReferencia.Y - 2,
-            //    0);
 
-            //XYZ puntoMedioY = new XYZ(
-            //    puntoReferencia.X + 2,
-            //    (verticeSueloY.Punto.Y + puntoReferencia.Y) / 2,
-            //    0);
 
-            //Line lineaCotaX = Line.CreateBound(
-            //    new XYZ(verticeSueloX.Punto.X, puntoMedioX.Y, 0),
-            //    new XYZ(puntoReferencia.X, puntoMedioX.Y, 0));
+            // 7. Crear líneas de cota - VERSIÓN PERIMETRAL GEOMÉTRICA TOTAL
+            double margenExterno = 3.0; // 5 pies de holgura por fuera de absolutamente todo
 
-            //Line lineaCotaY = Line.CreateBound(
-            //    new XYZ(puntoMedioY.X, verticeSueloY.Punto.Y, 0),
-            //    new XYZ(puntoMedioY.X, puntoReferencia.Y, 0));
+            XYZ puntoSuelo = verticeSueloMasCercano.Punto;
 
-            // 7. Crear líneas de cota - VERSIÓN CORREGIDA
-            // Calcular desplazamientos adecuados para que la cota sea visible
-            double desplazamientoX = 3.0;  // 3 pies de separación
-            double desplazamientoY = 3.0;
+            // A. Inicializar los límites con el punto acotado y la referencia
+            double minX = Math.Min(puntoSuelo.X, puntoReferencia.X);
+            double minY = Math.Min(puntoSuelo.Y, puntoReferencia.Y);
 
-            XYZ puntoMedioX = new XYZ(
-                (verticeSueloX.Punto.X + puntoReferencia.X) / 2,
-                puntoReferencia.Y - desplazamientoY,  // ← asegurar que está cerca
-                0);
-
-            XYZ puntoMedioY = new XYZ(
-                puntoReferencia.X + desplazamientoX,
-                (verticeSueloY.Punto.Y + puntoReferencia.Y) / 2,
-                0);
-
-            // Asegurar que las líneas NO sean cero
-            if (Math.Abs(verticeSueloX.Punto.X - puntoReferencia.X) < 0.01)
+            // B.1. Inspeccionar TODOS los pilares del modelo
+            foreach (FamilyInstance col in todasLasColumnas)
             {
-                TaskDialog.Show("Error", "El vértice X y la columna están en la misma posición X");
-                return;
+                XYZ posCol = GeometriaSuelos.ObtenerPuntoColumna(col);
+                if (posCol.X < minX) minX = posCol.X;
+                if (posCol.Y < minY) minY = posCol.Y;
             }
 
-            if (Math.Abs(verticeSueloY.Punto.Y - puntoReferencia.Y) < 0.01)
+            // B.2. INSPECCIONAR TODOS LOS VÉRTICES DEL SUELO (Para evitar que la cota lo atraviese)
+            foreach (VerticeConArista vSuelo in vertices)
             {
-                TaskDialog.Show("Error", "El vértice Y y la columna están en la misma posición Y");
-                return;
+                if (vSuelo.Punto.X < minX) minX = vSuelo.Punto.X;
+                if (vSuelo.Punto.Y < minY) minY = vSuelo.Punto.Y;
             }
 
+            // C. Definir la posición de las líneas de cota (Garantizado fuera del pilar y del suelo entero)
+            double posicionFinalY = minY - margenExterno;
+            double posicionFinalX = minX - margenExterno;
+
+
+
+            // D. Crear las líneas de cota ortogonales puras proyectadas al exterior
             Line lineaCotaX = Line.CreateBound(
-                new XYZ(verticeSueloX.Punto.X, puntoMedioX.Y, 0),
-                new XYZ(puntoReferencia.X, puntoMedioX.Y, 0));
+                new XYZ(puntoSuelo.X, posicionFinalY, 0),
+                new XYZ(puntoReferencia.X, posicionFinalY, 0));
 
             Line lineaCotaY = Line.CreateBound(
-                new XYZ(puntoMedioY.X, verticeSueloY.Punto.Y, 0),
-                new XYZ(puntoMedioY.X, puntoReferencia.Y, 0));
-
-            
+                new XYZ(posicionFinalX, puntoSuelo.Y, 0),
+                new XYZ(posicionFinalX, puntoReferencia.Y, 0));
 
 
 
 
 
             // 8. Crear las cotas
-            //Dimension cotaX = doc.Create.NewDimension(vistaPlanta, lineaCotaX, refArrayX);
-            //Dimension cotaY = doc.Create.NewDimension(vistaPlanta, lineaCotaY, refArrayY);
 
             // 8. Crear las cotas - Versión mejorada
             Dimension cotaX = null;
@@ -203,28 +199,16 @@ namespace WilliamForero_ApiRevit_II
                 if (refArrayX.Size >= 2)
                 {
                     cotaX = doc.Create.NewDimension(vistaPlanta, lineaCotaX, refArrayX);
-                    //if (cotaX != null)
-                    //    TaskDialog.Show("Éxito", "Cota X creada correctamente");
                 }
-                //else
-                //{
-                //    TaskDialog.Show("Error", $"refArrayX tiene solo {refArrayX.Size} elementos (mínimo 2)");
-                //}
 
                 if (refArrayY.Size >= 2)
                 {
                     cotaY = doc.Create.NewDimension(vistaPlanta, lineaCotaY, refArrayY);
-                    //if (cotaY != null)
-                    //    TaskDialog.Show("Éxito", "Cota Y creada correctamente");
                 }
-                //else
-                //{
-                //    TaskDialog.Show("Error", $"refArrayY tiene solo {refArrayY.Size} elementos (mínimo 2)");
-                //}
+
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("Error creando cotas", ex.Message);
             }
 
             
