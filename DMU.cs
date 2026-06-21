@@ -13,6 +13,12 @@ namespace WilliamForero_ApiRevit_II
     [Transaction(TransactionMode.Manual)]
     public class DMU : IExternalCommand
     {
+        // Interruptor global: Guarda el estado del DMU en la sesión de Revit
+        public static bool EstaActivado { get; set; } = false;
+
+        // Variable para guardar el UpdaterId del DMU
+        public static UpdaterId ContenedorUpdaterId { get; set; } = null;
+
         public Result Execute(
           ExternalCommandData commandData,
           ref string message,
@@ -26,7 +32,9 @@ namespace WilliamForero_ApiRevit_II
             // Se crea una nueva instancia de la clase DMUUpdater
             DMUUpdater dMUUpdater = new DMUUpdater(app.ActiveAddInId);
 
-            // Registramos el Updater. No es opcional
+            // Se guarda el UpdaterId en la variable global para usarla posteriormente en el control de botones
+            ContenedorUpdaterId = dMUUpdater.GetUpdaterId();
+            // Registramos el Updater
             UpdaterRegistry.RegisterUpdater(dMUUpdater, doc, false);
 
             // Creamos un filtro de categoria para Structural Columns
@@ -38,55 +46,65 @@ namespace WilliamForero_ApiRevit_II
             // Agragamos disparadores: StructualColumns, Para cambios geométricos
             UpdaterRegistry.AddTrigger(dMUUpdater.GetUpdaterId(), elementCategoryFilterRun, Element.GetChangeTypeGeometry());
 
+            // Se enciende el interruptor global para control de los botones del Ribbon
+            EstaActivado = true;
+
             return Result.Succeeded;
         }
 
-
-
+        /// <summary>
+        /// Agrega cotas a los pilares estructurales, tomando el suelo más cercano.
+        /// </summary>
+        /// <param name="doc">Documento</param>
+        /// <param name="elemId">Elemento que genero el disparador del Updater</param>
+        /// <param name="todasLasColumnas">Lista de todas las columnas estructurales</param>
         static internal void AgregarCotas(Document doc, ElementId elemId, List<FamilyInstance> todasLasColumnas)
         {
             if (doc.GetElement(elemId) is FamilyInstance pilarEstructural)
             {
-                // 1. Analizar suelos
-                AnalizadorSuelos.ResultadoAnalisis resultado = AnalizadorSuelos.Analizar(doc);
+                // Se calcula primero el centroide de las columnas para usarlo en la decisión de que suelo elegir
+                XYZ centroideColumnas = GeometriaSuelos.ObtenerCentroideColumnas(todasLasColumnas);
+
+                // Analizar suelos pasando el centroide de referencia
+                AnalizadorSuelos.ResultadoAnalisis resultado = AnalizadorSuelos.Analizar(doc, centroideColumnas);
 
                 try
                 {
-                    switch (resultado.Estado)
+                    // Se valida que existan suelos estructurales en el resultado del análisis
+                    if (resultado.SuelosEstructurales == null || !resultado.SuelosEstructurales.Any())
                     {
-                        case AnalizadorSuelos.SueloElegido.SinSuelos:
-                            // No hay suelo, no hacemos nada
-                            break;
+                        return;
+                    }
 
-                        case AnalizadorSuelos.SueloElegido.SueloEstructuralUnico:
-                            ProcesarCotas(doc, resultado.SuelosEstructurales[0], todasLasColumnas);
-                            break;
+                    // Al estar la lista ordenada por distancia en los cálculos, el primero será el más cercano
+                    Floor sueloSeleccionado = resultado.SuelosEstructurales.First();
 
-                        case AnalizadorSuelos.SueloElegido.SueloEstructuralMultiple:
-                            // Por ahora usamos el primero, luego se puede implementar selección
-                            ProcesarCotas(doc, resultado.SuelosEstructurales[0], todasLasColumnas);
-                            break;
-
-                        case AnalizadorSuelos.SueloElegido.SueloUnico:
-                            // No es estructural, no hacemos nada
-                            break;
-
-                        case AnalizadorSuelos.SueloElegido.SueloMultiple:
-                            // No son estructurales, no hacemos nada
-                            break;
+                    if (sueloSeleccionado != null)
+                    {
+                        ProcesarCotas(doc, sueloSeleccionado, todasLasColumnas);
                     }
                 }
                 catch (Exception ex)
                 {
-                    TaskDialog.Show("DMU - Error inesperado", ex.Message);
+                    System.Diagnostics.Debug.WriteLine("DMU - Error inesperado controlado: " + ex.Message);
                 }
             }
         }
 
+
+        /// <summary>
+        /// Metodo para procesar la creación de cotas para los pilares estructurales.
+        /// Se elimina las cotas anteriores buscando el ID guardado en el schema.
+        /// </summary>
+        /// <param name="doc">Documento de Revit</param>
+        /// <param name="suelo">Suelo mas cercano para la cota</param>
+        /// <param name="todasLasColumnas">Lista de todas las columnas estructurales</param>
         private static void ProcesarCotas(Document doc, Floor suelo, List<FamilyInstance> todasLasColumnas)
         {
-            // Forzar regeneración para asegurar que la geometría esté lista
+            // Se fuerza la regeneración para asegurar que la geometría esté lista
             doc.Regenerate();
+
+            //Pasos internos para la creacion de las cotas:
 
             // 1. Buscar si ya existe una cota anterior en cualquier columna y eliminarla
             foreach (FamilyInstance columna in todasLasColumnas)
@@ -94,31 +112,22 @@ namespace WilliamForero_ApiRevit_II
                 DMUSchema.EliminarCotasAnteriores(doc, columna);
             }
 
-            // 2. Obtener vértices del suelo
+            // 2. Obtener los vértices del suelo con sus aristas
             List<VerticeConArista> vertices = GeometriaSuelos.ObtenerVerticesConArista(suelo, doc);
 
 
-            // 3. Crear referencias para la cota — una por cada columna más el suelo
+            // 3. Crear ReferenceArray para las cotas X e Y
             ReferenceArray refArrayX = new ReferenceArray();
             ReferenceArray refArrayY = new ReferenceArray();
 
-            //// 4. Agregar referencia del vértice del suelo
-            ////    usando la primera columna como referencia de posición
-            //XYZ puntoReferencia = GeometriaSuelos.ObtenerCentroideColumnas(todasLasColumnas);
 
-            //VerticeConArista verticeSueloX = GeometriaSuelos.ObtenerVerticeMasCercanoEnX(vertices, puntoReferencia);
-            //VerticeConArista verticeSueloY = GeometriaSuelos.ObtenerVerticeMasCercanoEnY(vertices, puntoReferencia);
-
-            //refArrayX.Append(verticeSueloX.Arista.Reference);
-            //refArrayY.Append(verticeSueloY.Arista.Reference);
-
-            // 4. Agregar referencia del vértice del suelo utilizando la distancia real
+            // 4. Obtener la referencia del punto del suelo más cercano al centroide de las columnas
             XYZ puntoReferencia = GeometriaSuelos.ObtenerCentroideColumnas(todasLasColumnas);
 
-            // Obtenemos el único vértice más cercano en distancia real (sirve para ambos ejes)
+            // Se obtiene el único vértice del suelo, más cercano en distancia al centroide de las columnas
             VerticeConArista verticeSueloMasCercano = GeometriaSuelos.ObtenerVerticeMasCercano(vertices, puntoReferencia);
 
-            // Agregamos la referencia del VÉRTICE (punto) para las cotas X e Y
+            // se agrega la referencia del punto del vértice para las cotas del eje X e Y
             if (verticeSueloMasCercano.ReferenciaPunto != null)
             {
                 refArrayX.Append(verticeSueloMasCercano.ReferenciaPunto);
@@ -126,34 +135,36 @@ namespace WilliamForero_ApiRevit_II
             }
 
 
-            // 5. Agregar referencia del eje de cada columna
+            // 5. Obtener referencias de los ejes de todas las columnas y agregarlas a los ReferenceArray
             foreach (FamilyInstance columna in todasLasColumnas)
             {
-                Reference refX = GeometriaSuelos.ObtenerReferenciaEjeColumna(columna, /*doc,*/ true);
+                Reference refX = GeometriaSuelos.ObtenerReferenciaEjeColumna(columna, true);
                 if (refX != null)
                     refArrayX.Append(refX);
 
-                Reference refY = GeometriaSuelos.ObtenerReferenciaEjeColumna(columna, /*doc,*/ false);
+                Reference refY = GeometriaSuelos.ObtenerReferenciaEjeColumna(columna, false);
                 if (refY != null)
                     refArrayY.Append(refY);
             }
+
 
             // 6. Obtener vista de planta del nivel de la primera columna
             ViewPlan vistaPlanta = GeometriaSuelos.ObtenerVistaPlanta(doc, todasLasColumnas[0]);
             if (vistaPlanta == null) return;
 
 
+            // 7. Calcular la posición de las líneas de cota, con el fin de que estén fuera del pilar y del suelo
 
-            // 7. Crear líneas de cota - VERSIÓN PERIMETRAL GEOMÉTRICA TOTAL
-            double margenExterno = 3.0; // 5 pies de holgura por fuera de absolutamente todo
+            // Variable calcular la posición de las líneas de cota por fuera del pilar y del suelo
+            double margenExterno = 3.0;
 
             XYZ puntoSuelo = verticeSueloMasCercano.Punto;
 
-            // A. Inicializar los límites con el punto acotado y la referencia
+            // 7A. Buscar los límites inferior e izquierdo del punto de referencia del suelo
             double minX = Math.Min(puntoSuelo.X, puntoReferencia.X);
             double minY = Math.Min(puntoSuelo.Y, puntoReferencia.Y);
 
-            // B.1. Inspeccionar TODOS los pilares del modelo
+            // 7B.1. Inspeccionar todos los pilares para ver si estan más a la izquierda o abajo que el suelo
             foreach (FamilyInstance col in todasLasColumnas)
             {
                 XYZ posCol = GeometriaSuelos.ObtenerPuntoColumna(col);
@@ -161,20 +172,18 @@ namespace WilliamForero_ApiRevit_II
                 if (posCol.Y < minY) minY = posCol.Y;
             }
 
-            // B.2. INSPECCIONAR TODOS LOS VÉRTICES DEL SUELO (Para evitar que la cota lo atraviese)
+            // 7B.2. Inspeccionar los vertices del suelo para cer si estan más a la izquierda o abajo que el punto del suelo seleccionado
             foreach (VerticeConArista vSuelo in vertices)
             {
                 if (vSuelo.Punto.X < minX) minX = vSuelo.Punto.X;
                 if (vSuelo.Punto.Y < minY) minY = vSuelo.Punto.Y;
             }
 
-            // C. Definir la posición de las líneas de cota (Garantizado fuera del pilar y del suelo entero)
+            // 7C. Se definen la posición de las líneas de cota (Garantizado que queden fuera del pilar y del suelo entero)
             double posicionFinalY = minY - margenExterno;
             double posicionFinalX = minX - margenExterno;
 
-
-
-            // D. Crear las líneas de cota ortogonales puras proyectadas al exterior
+            // 7D. Se crean las líneas para la ubicacion de cotas
             Line lineaCotaX = Line.CreateBound(
                 new XYZ(puntoSuelo.X, posicionFinalY, 0),
                 new XYZ(puntoReferencia.X, posicionFinalY, 0));
@@ -185,11 +194,7 @@ namespace WilliamForero_ApiRevit_II
 
 
 
-
-
-            // 8. Crear las cotas
-
-            // 8. Crear las cotas - Versión mejorada
+            // 8. Se crean las cotas
             Dimension cotaX = null;
             Dimension cotaY = null;
 
@@ -205,14 +210,13 @@ namespace WilliamForero_ApiRevit_II
                 {
                     cotaY = doc.Create.NewDimension(vistaPlanta, lineaCotaY, refArrayY);
                 }
-
             }
             catch (Exception ex)
             {
             }
 
             
-            // 9. Guardar Ids en el schema de todas las columnas
+            // 9. Se guardan los Ids en el schema de todas las columnas
             foreach (FamilyInstance columna in todasLasColumnas)
             {
                 DMUSchema.GuardarDatos(doc, columna,
@@ -223,7 +227,9 @@ namespace WilliamForero_ApiRevit_II
         }
 
 
-
+        /// <summary>
+        /// Interfaz que implementa el IUpdater para manejar los eventos de adición y modificación de pilares estructurales
+        /// </summary>
         public class DMUUpdater : IUpdater
         {
             static AddInId m_appId;

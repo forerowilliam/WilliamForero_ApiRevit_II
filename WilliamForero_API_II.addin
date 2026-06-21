@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+	<AddIn Type="Application">
+		<Name>WilliamForero_ApiRevit_II</Name>
+		<Assembly>C:\Dropbox\M-ProgBIM\07_API REVIT II\Proyecto API II_William Forero\WilliamForero_ApiRevit_II\bin\Debug\net8.0-windows\WilliamForero_ApiRevit_II.dll</Assembly>
+		<FullClassName>WilliamForero_ApiRevit_II.Ribbon</FullClassName>
+		<ClientId>0ac33171-e262-4ad0-8e47-f4ac74dcefcc</ClientId>
+		<VendorId>WF</VendorId>
+		<VendorDescription>William Forero</VendorDescription>
+	</AddIn>
+</RevitAddIns>

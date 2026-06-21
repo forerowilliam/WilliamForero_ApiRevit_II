@@ -28,6 +28,9 @@ namespace WilliamForero_ApiRevit_II
             //Desregistramos el Updater
             UpdaterRegistry.UnregisterUpdater(dMUUpdater.GetUpdaterId());
 
+            // Se apaga el interruptor global para control de los botones del Ribbon
+            WilliamForero_ApiRevit_II.DMU.EstaActivado = false;
+
             return Result.Succeeded;
         }
     }

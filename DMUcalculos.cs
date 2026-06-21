@@ -8,6 +8,10 @@ using System.Linq;
 
 namespace WilliamForero_ApiRevit_II
 {
+
+    /// <summary>
+    /// Clase auxiliar para almacenar un punto de un vértice del suelo junto con la arista a la que pertenece y su referencia.
+    /// </summary>
     public class VerticeConArista
     {
         public XYZ Punto { get; set; }
@@ -15,119 +19,83 @@ namespace WilliamForero_ApiRevit_II
         public Reference ReferenciaPunto { get; set; }
     }
 
+
+    /// <summary>
+    /// Clase estática para analizar los suelos estructurales del proyecto, 
+    /// filtrarlos y ordenarlos por cercanía al centroide de las columnas.
+    /// </summary>
     public static class AnalizadorSuelos
     {
-        public enum SueloElegido
-        {
-            SinSuelos,
-            SueloEstructuralUnico,
-            SueloEstructuralMultiple,
-            SueloUnico,
-            SueloMultiple
-        }
-
-        // Clase resultado que agrupa estado y listas
         public class ResultadoAnalisis
         {
-            public SueloElegido Estado { get; set; }
             public List<Floor> SuelosEstructurales { get; set; }
-            public List<Floor> Suelos { get; set; }
         }
 
-        public static ResultadoAnalisis Analizar(Document doc)
+        /// <summary>
+        /// Analiza los suelos estructurales del proyecto, 
+        /// filtrándolos y ordenándolos por cercanía al centroide de las columnas.
+        /// </summary>
+        /// <param name="doc">Documento</param>
+        /// <param name="centroideColumnas">Centroide de las columnas</param>
+        /// <returns>Resultado del análisis con los suelos estructurales ordenados</returns>
+        public static ResultadoAnalisis Analizar(Document doc, XYZ centroideColumnas)
         {
             List<Floor> listaSuelosEstructurales = new List<Floor>();
-            List<Floor> listaSuelos = new List<Floor>();
 
             FilteredElementCollector col = new FilteredElementCollector(doc)
                 .OfClass(typeof(Floor));
 
+            // Filtrado por parámetro estructural
             foreach (Floor floor in col)
             {
                 Parameter isStructural = floor.get_Parameter(BuiltInParameter.FLOOR_PARAM_IS_STRUCTURAL);
                 if (isStructural != null && isStructural.AsInteger() == 1)
+                {
                     listaSuelosEstructurales.Add(floor);
-                else
-                    listaSuelos.Add(floor);
+                }
             }
 
-            // Determinamos el estado
-            SueloElegido estado;
+            // Ordenamos la lista para que el suelo cuyo centro esté más cerca del centroide sea el primero
+            List<Floor> suelosOrdenados = listaSuelosEstructurales
+                .OrderBy(suelo => ObtenerCentroSuelo(suelo).DistanceTo(centroideColumnas))
+                .ToList();
 
-            if (listaSuelosEstructurales.Count == 0 && listaSuelos.Count == 0)
-                estado = SueloElegido.SinSuelos;
-            else if (listaSuelosEstructurales.Count == 1)
-                estado = SueloElegido.SueloEstructuralUnico;
-            else if (listaSuelosEstructurales.Count > 1)
-                estado = SueloElegido.SueloEstructuralMultiple;
-            else if (listaSuelos.Count == 1)
-                estado = SueloElegido.SueloUnico;
-            else
-                estado = SueloElegido.SueloMultiple;
-
-            // Retornamos todo junto
             return new ResultadoAnalisis
             {
-                Estado = estado,
-                SuelosEstructurales = listaSuelosEstructurales,
-                Suelos = listaSuelos
+                SuelosEstructurales = suelosOrdenados
             };
         }
-    }
 
-    public static class AccionesSuelos
-    {
-        public static void EjecutarSinSuelos(Document doc, ElementId elemId)
-        {
-            if (doc.GetElement(elemId) is FamilyInstance pilar)
-            {
-                Parameter comentario = pilar.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                if (comentario != null) comentario.Set("No hay suelos");
-            }
-        }
 
-        public static void EjecutarSueloEstructuralUnico(Document doc, ElementId elemId, Floor suelo)
+        /// <summary>
+        /// Obtiene el punto central del BoundingBox del suelo, que se usará para calcular la distancia al centroide de las columnas.
+        /// </summary>
+        /// <param name="suelo">Suelo del cual se quiere obtener el centro</param>
+        /// <returns>Punto central del BoundingBox del suelo</returns>
+        private static XYZ ObtenerCentroSuelo(Floor suelo)
         {
-            if (doc.GetElement(elemId) is FamilyInstance pilar)
-            {
-                Parameter comentario = pilar.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                if (comentario != null) comentario.Set("Suelo estructural único: " + suelo.Name);
-            }
-        }
+            BoundingBoxXYZ bbox = suelo.get_BoundingBox(null);
+            if (bbox == null) return XYZ.Zero;
 
-        public static void EjecutarSueloEstructuralMultiple(Document doc, ElementId elemId, List<Floor> suelos)
-        {
-            if (doc.GetElement(elemId) is FamilyInstance pilar)
-            {
-                Parameter comentario = pilar.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                if (comentario != null) comentario.Set("Múltiples suelos estructurales: " + suelos.Count);
-            }
-        }
-
-        public static void EjecutarSueloUnico(Document doc, ElementId elemId, Floor suelo)
-        {
-            if (doc.GetElement(elemId) is FamilyInstance pilar)
-            {
-                Parameter comentario = pilar.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                if (comentario != null) comentario.Set("Suelo único no estructural: " + suelo.Name);
-            }
-        }
-
-        public static void EjecutarSueloMultiple(Document doc, ElementId elemId, List<Floor> suelos)
-        {
-            if (doc.GetElement(elemId) is FamilyInstance pilar)
-            {
-                Parameter comentario = pilar.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                if (comentario != null) comentario.Set("Múltiples suelos no estructurales: " + suelos.Count);
-            }
+            // El centro se calcula promediando las coordenadas mínimas y máximas del BoundingBox
+            return (bbox.Min + bbox.Max) / 2.0;
         }
     }
 
 
 
+    /// <summary>
+    /// Clase estática para manejar la geometría de los suelos y columnas
+    /// </summary>
     public static class GeometriaSuelos
     {
 
+        /// <summary>
+        /// Calcula el centroide del conjunto de columnas, 
+        /// sumando las coordenadas de cada columna y dividiendo por el número total de columnas.
+        /// </summary>
+        /// <param name="columnas">Lista de columnas</param>
+        /// <returns>Punto central del conjunto de columnas</returns>
         public static XYZ ObtenerCentroideColumnas(List<FamilyInstance> columnas)
         {
             double x = 0, y = 0, z = 0;
@@ -141,8 +109,13 @@ namespace WilliamForero_ApiRevit_II
             int count = columnas.Count;
             return new XYZ(x / count, y / count, z / count);
         }
-         
 
+
+        /// <summary>
+        /// Obtiene el punto de ubicación de la columna, se usará para calcular la distancia a los suelos.
+        /// </summary>
+        /// <param name="columna">Columna de la cual se quiere obtener el punto de ubicación</param>
+        /// <returns>Punto de ubicación de la columna</returns>
         public static XYZ ObtenerPuntoColumna(FamilyInstance columna)
         {
             LocationPoint ubicacion = columna.Location as LocationPoint;
@@ -150,23 +123,31 @@ namespace WilliamForero_ApiRevit_II
         }
 
 
-
+        /// <summary>
+        /// Obtiene la referencia del plano interno de la columna que corresponde al eje X o eje Y, 
+        /// </summary>
+        /// <param name="columna">Columna de la cual se quiere obtener la referencia del eje</param>
+        /// <param name="ejeX">Indica si se quiere la referencia del eje X (true) o del eje Y (false)</param>
+        /// <returns>Referencia del plano interno de la columna correspondiente al eje especificado</returns>
         public static Reference ObtenerReferenciaEjeColumna(FamilyInstance columna, bool ejeX)
         {
-            // Revit ya clasifica los planos internos de las familias.
-            // CenterLeftRight suele ser el eje Vertical en planta (Eje X de la columna)
-            // CenterFrontBack suele ser el eje Horizontal en planta (Eje Y de la columna)
-
             FamilyInstanceReferenceType tipoBuscado = ejeX
                 ? FamilyInstanceReferenceType.CenterLeftRight
                 : FamilyInstanceReferenceType.CenterFrontBack;
 
             IList<Reference> referencias = columna.GetReferences(tipoBuscado);
 
-            // Devolvemos la primera referencia encontrada que coincida con el tipo
+            // Se devuelve la primera referencia encontrada que coincida con el tipo
             return referencias.FirstOrDefault();
         }
 
+
+        /// <summary>
+        /// Obtiene una lista de vértices del suelo junto con su arista y su referencia
+        /// </summary>
+        /// <param name="suelo">Suelo del cual se quieren obtener los vértices</param>
+        /// <param name="doc">Documento de Revit</param>
+        /// <returns>Lista de vértices con su arista y referencia</returns>
         public static List<VerticeConArista> ObtenerVerticesConArista(Floor suelo, Document doc)
         {
             List<VerticeConArista> vertices = new List<VerticeConArista>();
@@ -210,20 +191,13 @@ namespace WilliamForero_ApiRevit_II
             return vertices;
         }
 
-        //public static VerticeConArista ObtenerVerticeMasCercanoEnX(List<VerticeConArista> vertices, XYZ puntoColumna)
-        //{
-        //    return vertices
-        //        .OrderBy(v => Math.Abs(v.Punto.X - puntoColumna.X))
-        //        .First();
-        //}
 
-        //public static VerticeConArista ObtenerVerticeMasCercanoEnY(List<VerticeConArista> vertices, XYZ puntoColumna)
-        //{
-        //    return vertices
-        //        .OrderBy(v => Math.Abs(v.Punto.Y - puntoColumna.Y))
-        //        .First();
-        //}
-
+        /// <summary>
+        /// Obtiene el vértice del suelo que está más cerca del punto de ubicación de la columna,
+        /// </summary>
+        /// <param name="vertices">Lista de vértices con su arista y referencia</param>
+        /// <param name="puntoColumna">Punto de ubicación de la columna</param>
+        /// <returns>Vértice más cercano al punto de la columna</returns>
         public static VerticeConArista ObtenerVerticeMasCercano(List<VerticeConArista> vertices, XYZ puntoColumna)
         {
             return vertices
@@ -232,6 +206,12 @@ namespace WilliamForero_ApiRevit_II
         }
 
 
+        /// <summary>
+        /// Obtiene la vista de planta estructural del nivel de la columna, si la vista activa no es una vista de planta.
+        /// </summary>
+        /// <param name="doc">Documento</param>
+        /// <param name="columna">Columna para la cual se quiere obtener la vista de planta</param>
+        /// <returns>Vista de planta estructural del nivel de la columna</returns>
         public static ViewPlan ObtenerVistaPlanta(Document doc, FamilyInstance columna)
         {
             // Si la vista activa es una vista de planta, la usamos directamente

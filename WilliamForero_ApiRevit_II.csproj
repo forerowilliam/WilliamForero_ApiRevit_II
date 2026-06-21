@@ -4,7 +4,25 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	<UseWPF>true</UseWPF>
+
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Resources\ActivarDMU_L.png" />
+	<None Remove="Resources\ActivarDMU_S.png" />
+    <None Remove="Resources\DesactivarDMU_L.png" />
+    <None Remove="Resources\DesactivarDMU_S.png" />
+	<None Remove="Resources\Info.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\ActivarDMU_L.png" />
+	<EmbeddedResource Include="Resources\ActivarDMU_S.png" />
+    <EmbeddedResource Include="Resources\DesactivarDMU_L.png" />
+    <EmbeddedResource Include="Resources\DesactivarDMU_S.png" />
+	<EmbeddedResource Include="Resources\Info.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2026.0.0" />

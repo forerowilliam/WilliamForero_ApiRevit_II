@@ -4,12 +4,21 @@ using System;
 
 namespace WilliamForero_ApiRevit_II
 {
+    /// <summary>
+    /// Clase estática para manejar el almacenamiento de datos dentro de las columnas,
+    /// se usará para leer y guardar los Ids de cotas y suelo en cada columna,
+    /// tambien para eliminar las cotas anteriores usando esos Ids.
+    /// </summary>
     public static class DMUSchema
     {
-        // GUID fijo, generado una sola vez, nunca modificar
+        // GUID fijo, generado una sola vez, no modificar
         private static readonly Guid SchemaGuid = new Guid("e47c4741-2a1e-416c-bb13-3adc8acd8f7b");
         private const string SchemaName = "DMU_ColumnaSchema";
 
+        /// <summary>
+        /// Metodo para obtener o crear el schema.
+        /// </summary>
+        /// <returns>El schema obtenido o creado</returns>
         public static Schema ObtenerSchema()
         {
             // Si ya existe, lo retornamos directamente
@@ -32,6 +41,15 @@ namespace WilliamForero_ApiRevit_II
             return schemaBuilder.Finish();
         }
 
+
+        /// <summary>
+        /// Guarda los Ids de las cotas y suelo en el schema asociado a la columna.
+        /// </summary>
+        /// <param name="doc">Documento</param>
+        /// <param name="columna">Columna donde se almacenarán los datos</param>
+        /// <param name="idCotaX">Id de la cota en el eje X</param>
+        /// <param name="idCotaY">Id de la cota en el eje Y</param>
+        /// <param name="idSuelo">Id del suelo asociado</param>
         public static void GuardarDatos(Document doc, FamilyInstance columna, long idCotaX, long idCotaY, long idSuelo)
         {
             Schema schema = ObtenerSchema();
@@ -45,6 +63,15 @@ namespace WilliamForero_ApiRevit_II
             columna.SetEntity(entidad);
         }
 
+
+        /// <summary>
+        /// Lee los Ids de las cotas y suelo almacenados en el schema asociado a la columna.
+        /// </summary>
+        /// <param name="columna">Columna de la cual se leerán los datos</param>
+        /// <param name="idCotaX">Id de la cota en el eje X</param>
+        /// <param name="idCotaY">Id de la cota en el eje Y</param>
+        /// <param name="idSuelo">Id del suelo asociado</param>
+        /// <returns>True si hay datos para leer, false en caso contrario</returns>
         public static bool LeerDatos(FamilyInstance columna, out long idCotaX, out long idCotaY, out long idSuelo)
         {
             Schema schema = Schema.Lookup(SchemaGuid);
@@ -62,6 +89,7 @@ namespace WilliamForero_ApiRevit_II
             // Si la columna no tiene datos guardados
             if (!entidad.IsValid()) return false;
 
+            // Se leen los datos
             idCotaX = entidad.Get<long>("IdCotaX");
             idCotaY = entidad.Get<long>("IdCotaY");
             idSuelo = entidad.Get<long>("IdSuelo");
@@ -70,6 +98,11 @@ namespace WilliamForero_ApiRevit_II
         }
 
 
+        /// <summary>
+        /// Elimina las cotas anteriores asociadas a la columna, usando los Ids almacenados en el schema.
+        /// </summary>
+        /// <param name="doc">Documento donde se encuentran las cotas</param>
+        /// <param name="columna">Columna de la cual se eliminarán las cotas</param>
         public static void EliminarCotasAnteriores(Document doc, FamilyInstance columna)
         {
             if (!LeerDatos(columna, out long idCotaX, out long idCotaY, out long idSuelo))
@@ -93,7 +126,5 @@ namespace WilliamForero_ApiRevit_II
         }
 
     }
-
-
 
 }
