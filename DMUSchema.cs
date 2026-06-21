@@ -16,7 +16,7 @@ namespace WilliamForero_ApiRevit_II
         private const string SchemaName = "DMU_ColumnaSchema";
 
         /// <summary>
-        /// Metodo para obtener o crear el schema.
+        /// Método para obtener o crear el schema.
         /// </summary>
         /// <returns>El schema obtenido o creado</returns>
         public static Schema ObtenerSchema()
@@ -33,7 +33,7 @@ namespace WilliamForero_ApiRevit_II
             schemaBuilder.SetSchemaName(SchemaName);
             schemaBuilder.SetDocumentation("Schema para almacenar Ids de cotas y suelo.");
 
-            //Construimos Field
+            //Definimos los campos del almacenamiento
             schemaBuilder.AddSimpleField("IdCotaX", typeof(long));
             schemaBuilder.AddSimpleField("IdCotaY", typeof(long));
             schemaBuilder.AddSimpleField("IdSuelo", typeof(long));

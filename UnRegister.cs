@@ -3,8 +3,6 @@ using Autodesk.Revit.ApplicationServices;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
-using static WilliamForero_ApiRevit_II.DMU;
-
 #endregion
 
 namespace WilliamForero_ApiRevit_II
@@ -17,19 +15,15 @@ namespace WilliamForero_ApiRevit_II
           ref string message,
           ElementSet elements)
         {
-            UIApplication uiapp = commandData.Application;
-            UIDocument uidoc = uiapp.ActiveUIDocument;
-            Application app = uiapp.Application;
-            Document doc = uidoc.Document;
+            // Verificamos de forma segura si el DMU está corriendo en la sesión
+            if (DMU.ContenedorUpdaterId != null && UpdaterRegistry.IsUpdaterRegistered(DMU.ContenedorUpdaterId))
+            {
+                // Desregistramos el Updater usando directamente el ID estático global
+                UpdaterRegistry.UnregisterUpdater(DMU.ContenedorUpdaterId);
+            }
 
-            // Se crea una nueva instancia de la clase DMUUpdater
-            DMUUpdater dMUUpdater = new DMUUpdater(app.ActiveAddInId);
-
-            //Desregistramos el Updater
-            UpdaterRegistry.UnregisterUpdater(dMUUpdater.GetUpdaterId());
-
-            // Se apaga el interruptor global para control de los botones del Ribbon
-            WilliamForero_ApiRevit_II.DMU.EstaActivado = false;
+            // Se apaga el interruptor global para actualizar el estado visual de los botones del Ribbon
+            DMU.EstaActivado = false;
 
             return Result.Succeeded;
         }

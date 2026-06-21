@@ -3,7 +3,6 @@ using Autodesk.Revit.ApplicationServices;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 #endregion
@@ -40,10 +39,10 @@ namespace WilliamForero_ApiRevit_II
             // Creamos un filtro de categoria para Structural Columns
             ElementCategoryFilter elementCategoryFilterRun = new ElementCategoryFilter(BuiltInCategory.OST_StructuralColumns);
 
-            // Agragamos disparadores: StructualColumns, Cuando se agregan nuevas
+            // Agregamos disparadores: StructualColumns, Cuando se agregan nuevas
             UpdaterRegistry.AddTrigger(dMUUpdater.GetUpdaterId(), elementCategoryFilterRun, Element.GetChangeTypeElementAddition());
 
-            // Agragamos disparadores: StructualColumns, Para cambios geométricos
+            // Agregamos disparadores: StructualColumns, Para cambios geométricos
             UpdaterRegistry.AddTrigger(dMUUpdater.GetUpdaterId(), elementCategoryFilterRun, Element.GetChangeTypeGeometry());
 
             // Se enciende el interruptor global para control de los botones del Ribbon
@@ -93,7 +92,7 @@ namespace WilliamForero_ApiRevit_II
 
 
         /// <summary>
-        /// Metodo para procesar la creación de cotas para los pilares estructurales.
+        /// Método para procesar la creación de cotas para los pilares estructurales.
         /// Se elimina las cotas anteriores buscando el ID guardado en el schema.
         /// </summary>
         /// <param name="doc">Documento de Revit</param>

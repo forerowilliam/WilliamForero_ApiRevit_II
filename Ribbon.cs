@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using Autodesk.Revit;
-using System.Diagnostics;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.ApplicationServices;
-using Autodesk.Revit.UI.Events;
 
 namespace WilliamForero_ApiRevit_II
 {
@@ -19,10 +16,6 @@ namespace WilliamForero_ApiRevit_II
     {
         // ExternalCommands assembly path
         static string AddInPath = typeof(Ribbon).Assembly.Location;
-        // Button icons directory
-        static string ButtonIconsFolder = Path.GetDirectoryName(AddInPath);
-        // uiApplication
-        static UIApplication uiApplication = null;
 
 
         public Autodesk.Revit.UI.Result OnStartup(UIControlledApplication application)
@@ -136,7 +129,7 @@ namespace WilliamForero_ApiRevit_II
 
 
     /// <summary>
-    /// Interfaz que controla la disponibilidad del botón de ENCENDER la DMU.
+    /// Clase que controla la disponibilidad del botón de ENCENDER la DMU.
     /// </summary>
     public class DisponibleParaEncender : IExternalCommandAvailability
     {
@@ -148,7 +141,7 @@ namespace WilliamForero_ApiRevit_II
     }
 
     /// <summary>
-    /// Interfaz que controla la disponibilidad del botón de APAGAR la DMU.
+    /// Clase que controla la disponibilidad del botón de APAGAR la DMU.
     /// </summary>
     public class DisponibleParaApagar : IExternalCommandAvailability
     {
